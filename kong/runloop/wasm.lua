@@ -1,4 +1,28 @@
-local _M = {}
+local _M = {
+  -- these filter lookup tables are created once and then reset/re-used when
+  -- `wasm.init()` is called. This means other modules are permitted to stash
+  -- a reference to them, which helps to avoid several chicken/egg dependency
+  -- ordering issues.
+
+  ---@type kong.configuration.wasm_filter[]
+  filters = {},
+
+  ---@type table<string, kong.configuration.wasm_filter>
+  filters_by_name = {},
+
+  ---@type string[]
+  filter_names = {},
+}
+
+
+--- This represents a wasm module discovered by the conf_loader in
+--- `kong.configuration.wasm_filters_path`
+---
+---@class kong.configuration.wasm_filter
+---
+---@field name string
+---@field path string
+
 
 local utils = require "kong.tools.utils"
 local dns = require "kong.tools.dns"
@@ -521,13 +545,29 @@ _M.set_state = set_state
 
 ---@param kong_config table
 function _M.init(kong_config)
+  -- we don't expect wasm.init() to be called more than once under normal
+  -- circumstances, but explicitly clearing these tables allows it to be
+  -- called multiple times in our tests
+  clear_tab(_M.filters)
+  clear_tab(_M.filters_by_name)
+  clear_tab(_M.filter_names)
+
   if not kong_config.wasm then
+    ENABLED = false
     return
   end
 
+  ---@type kong.configuration.wasm_filter[]
   local modules = kong_config.wasm_modules_parsed
   if not modules or #modules == 0 then
+    ENABLED = false
     return
+  end
+
+  for i, filter in ipairs(modules) do
+    _M.filters[i] = filter
+    _M.filters_by_name[filter.name] = filter
+    _M.filter_names[i] = filter.name
   end
 
   -- setup a DNS client for ngx_wasm_module

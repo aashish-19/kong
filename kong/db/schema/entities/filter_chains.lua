@@ -1,4 +1,5 @@
 local typedefs = require "kong.db.schema.typedefs"
+local wasm = require "kong.runloop.wasm"
 
 ---@class kong.db.schema.entities.filter_chain : table
 ---
@@ -23,9 +24,26 @@ local typedefs = require "kong.db.schema.typedefs"
 local filter = {
   type = "record",
   fields = {
-    { name    = { type = "string", required = true, }, },
+    { name    = { type = "string", required = true, one_of = wasm.filter_names, }, },
     { config  = { type = "string", required = false, }, },
     { enabled = { type = "boolean", default = true, required = true, }, },
+  },
+
+  entity_checks = {
+    { custom_entity_check = {
+      field_sources = { "name" },
+      fn = function(_)
+        if not wasm.enabled()
+           or not wasm.filter_names
+           or #wasm.filter_names == 0
+        then
+          return nil, "wasm is disabled (or no wasm filters are available on this node)"
+        end
+
+        return true
+      end,
+      },
+    },
   },
 }
 
@@ -37,7 +55,6 @@ return {
   admin_api_name = "filter-chains",
   generate_admin_api = true,
   workspaceable = true,
-  dao = "kong.db.dao.filter_chains",
   cache_key = { "route", "service" },
 
   fields = {
@@ -64,6 +81,21 @@ return {
         "service",
         "route",
       }
+    },
+
+    { custom_entity_check = {
+      field_sources = { "filters" },
+      fn = function(_)
+        if not wasm.enabled()
+           or not wasm.filter_names
+           or #wasm.filter_names == 0
+        then
+          return nil, "wasm is disabled (or no wasm filters are available on this node)"
+        end
+
+        return true
+      end,
+      },
     },
   },
 }

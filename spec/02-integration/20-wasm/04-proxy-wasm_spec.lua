@@ -19,13 +19,18 @@ describe("proxy-wasm filters (#wasm)", function()
   local hosts_file
 
   lazy_setup(function()
+    require("kong.runloop.wasm").init({
+      wasm = true,
+      wasm_modules_parsed = {
+        { name = "tests" },
+      },
+    })
+
     local bp, db = helpers.get_db_utils(DATABASE, {
       "routes",
       "services",
       "filter_chains",
     })
-
-    db.filter_chains:load_filters({ { name = "tests" } })
 
     mock_service = assert(bp.services:insert {
       host = helpers.mock_upstream_host,
